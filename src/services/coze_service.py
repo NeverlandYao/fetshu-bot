@@ -49,14 +49,13 @@ class CozeService:
             error = CozeErrorResponse(**error_data)
             logger.error(f"Coze API 错误: {error.code} - {error.msg}")
             return CozeAIResponse(
-                success=False,
-                error_message=f"API 错误 {error.code}: {error.msg}"
+                success=False, error_message=f"API 错误 {error.code}: {error.msg}"
             )
         except Exception as e:
             logger.error(f"解析错误响应失败: {e}")
             return CozeAIResponse(
                 success=False,
-                error_message=f"HTTP {response.status_code}: {response.text}"
+                error_message=f"HTTP {response.status_code}: {response.text}",
             )
 
     async def _parse_stream_response(self, response: httpx.Response) -> CozeAIResponse:
@@ -69,50 +68,51 @@ class CozeService:
         try:
             # 获取响应内容
             response_text = await response.aread()
-            response_str = response_text.decode('utf-8')
-            
+            response_str = response_text.decode("utf-8")
+
             logger.debug(f"原始响应内容: {response_str}")
-            
+
             # 处理 Server-Sent Events 格式
-            lines = response_str.split('\n')
+            lines = response_str.split("\n")
             current_event = None
-            
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                
+
                 # 处理 SSE 事件类型
                 if line.startswith("event: "):
                     current_event = line[7:]  # 移除 "event: " 前缀
                     continue
-                
+
                 # 处理 SSE 数据
                 if line.startswith("data: "):
                     data_str = line[6:]  # 移除 "data: " 前缀
-                    
+
                     if data_str.strip() == "[DONE]":
                         break
-                    
+
                     try:
                         event_data = json.loads(data_str)
-                        
+
                         # 检查是否是错误事件
-                        if current_event == "error" or ("code" in event_data and "msg" in event_data):
+                        if current_event == "error" or (
+                            "code" in event_data and "msg" in event_data
+                        ):
                             error = CozeErrorResponse(**event_data)
                             logger.error(f"Coze API 错误: {error.code} - {error.msg}")
                             return CozeAIResponse(
                                 success=False,
-                                error_message=f"API 错误 {error.code}: {error.msg}"
+                                error_message=f"API 错误 {error.code}: {error.msg}",
                             )
-                        
+
                         # 处理正常事件
                         event = CozeWorkflowEvent(
-                            event=current_event or "unknown",
-                            data=event_data
+                            event=current_event or "unknown", data=event_data
                         )
                         events.append(event)
-                        
+
                         # 提取内容和元数据
                         if current_event == "conversation.message.completed":
                             if "content" in event_data:
@@ -134,14 +134,14 @@ class CozeService:
                                 debug_url = event_data["debug_url"]
                             if "conversation_id" in event_data:
                                 conversation_id = event_data["conversation_id"]
-                                    
+
                     except json.JSONDecodeError as e:
                         logger.warning(f"解析事件数据失败: {e}, 数据: {data_str}")
                         continue
                     except Exception as e:
                         logger.warning(f"处理事件失败: {e}, 数据: {data_str}")
                         continue
-                
+
                 # 处理直接的 JSON 错误响应（不在 SSE 格式中）
                 elif line.startswith("{") and line.endswith("}"):
                     try:
@@ -151,33 +151,32 @@ class CozeService:
                             logger.error(f"Coze API 错误: {error.code} - {error.msg}")
                             return CozeAIResponse(
                                 success=False,
-                                error_message=f"API 错误 {error.code}: {error.msg}"
+                                error_message=f"API 错误 {error.code}: {error.msg}",
                             )
                     except json.JSONDecodeError:
                         continue
 
             # 合并所有内容
             full_content = "".join(content_parts) if content_parts else None
-            
+
             # 如果没有内容但也没有错误，可能是配置问题
             if not full_content and not events:
                 return CozeAIResponse(
                     success=False,
-                    error_message="未收到有效的 AI 响应，请检查 Coze 配置"
+                    error_message="未收到有效的 AI 响应，请检查 Coze 配置",
                 )
-            
+
             return CozeAIResponse(
                 success=True,
                 content=full_content,
                 debug_url=debug_url,
-                conversation_id=conversation_id
+                conversation_id=conversation_id,
             )
 
         except Exception as e:
             logger.error(f"解析流式响应失败: {e}")
             return CozeAIResponse(
-                success=False,
-                error_message=f"解析响应失败: {str(e)}"
+                success=False, error_message=f"解析响应失败: {str(e)}"
             )
 
     async def _create_conversation(self) -> Optional[str]:
@@ -193,12 +192,8 @@ class CozeService:
         try:
             async with AsyncClient(timeout=self.timeout) as client:
                 logger.info(f"创建 Coze 对话: {url}")
-                
-                response = await client.post(
-                    url,
-                    headers=headers,
-                    json={}
-                )
+
+                response = await client.post(url, headers=headers, json={})
 
                 if response.status_code == 200:
                     data = response.json()
@@ -206,7 +201,9 @@ class CozeService:
                     logger.info(f"成功创建对话: {conversation_id}")
                     return conversation_id
                 else:
-                    logger.error(f"创建对话失败: {response.status_code} - {response.text}")
+                    logger.error(
+                        f"创建对话失败: {response.status_code} - {response.text}"
+                    )
                     return None
 
         except Exception as e:
@@ -217,7 +214,7 @@ class CozeService:
         self,
         user_input: str,
         conversation_name: str = "Answer",
-        additional_messages: Optional[List[CozeMessage]] = None
+        additional_messages: Optional[List[CozeMessage]] = None,
     ) -> CozeAIResponse:
         """
         与 Coze 对话流进行对话。
@@ -232,23 +229,18 @@ class CozeService:
         """
         if not self.access_token:
             return CozeAIResponse(
-                success=False,
-                error_message="Coze access token 未配置"
+                success=False, error_message="Coze access token 未配置"
             )
 
         if not self.workflow_id or not self.app_id:
             return CozeAIResponse(
-                success=False,
-                error_message="Coze workflow_id 或 app_id 未配置"
+                success=False, error_message="Coze workflow_id 或 app_id 未配置"
             )
 
         # 先创建对话
         conversation_id = await self._create_conversation()
         if not conversation_id:
-            return CozeAIResponse(
-                success=False,
-                error_message="无法创建对话"
-            )
+            return CozeAIResponse(success=False, error_message="无法创建对话")
 
         # 构建请求数据
         request_data = CozeWorkflowChatRequest(
@@ -257,16 +249,17 @@ class CozeService:
             conversation_id=conversation_id,
             parameters={
                 "CONVERSATION_NAME": conversation_name,
-                "USER_INPUT": user_input
+                "USER_INPUT": user_input,
             },
-            additional_messages=additional_messages or [
+            additional_messages=additional_messages
+            or [
                 CozeMessage(
                     content=user_input,
                     content_type="text",
                     role="user",
-                    type="question"
+                    type="question",
                 )
-            ]
+            ],
         )
 
         url = f"{self.base_url}/v1/workflows/chat"
@@ -276,7 +269,7 @@ class CozeService:
             async with AsyncClient(timeout=self.timeout) as client:
                 logger.info(f"发送 Coze API 请求: {url}")
                 logger.debug(f"请求数据: {request_data.model_dump()}")
-                
+
                 response = await client.post(
                     url,
                     headers=headers,
@@ -290,22 +283,18 @@ class CozeService:
 
         except httpx.TimeoutException:
             logger.error("Coze API 请求超时")
-            return CozeAIResponse(
-                success=False,
-                error_message="API 请求超时"
-            )
+            return CozeAIResponse(success=False, error_message="API 请求超时")
         except Exception as e:
             logger.error(f"Coze API 请求失败: {e}")
             return CozeAIResponse(
-                success=False,
-                error_message=f"API 请求失败: {str(e)}"
+                success=False, error_message=f"API 请求失败: {str(e)}"
             )
 
     async def chat_stream(
         self,
         user_input: str,
         conversation_name: str = "Answer",
-        additional_messages: Optional[List[CozeMessage]] = None
+        additional_messages: Optional[List[CozeMessage]] = None,
     ) -> AsyncGenerator[CozeWorkflowEvent, None]:
         """
         流式对话接口。
@@ -327,16 +316,17 @@ class CozeService:
             app_id=self.app_id,
             parameters={
                 "CONVERSATION_NAME": conversation_name,
-                "USER_INPUT": user_input
+                "USER_INPUT": user_input,
             },
-            additional_messages=additional_messages or [
+            additional_messages=additional_messages
+            or [
                 CozeMessage(
                     content=user_input,
                     content_type="text",
                     role="user",
-                    type="question"
+                    type="question",
                 )
-            ]
+            ],
         )
 
         url = f"{self.base_url}/v1/workflows/chat"
@@ -357,13 +347,13 @@ class CozeService:
                     async for line in response.aiter_lines():
                         if not line.strip():
                             continue
-                        
+
                         if line.startswith("data: "):
                             data_str = line[6:]
-                            
+
                             if data_str.strip() == "[DONE]":
                                 break
-                            
+
                             try:
                                 event_data = json.loads(data_str)
                                 event = CozeWorkflowEvent(**event_data)

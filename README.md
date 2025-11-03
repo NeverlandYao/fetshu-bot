@@ -121,6 +121,19 @@ DEBUG=true
 # CORS 配置
 CORS_ORIGINS=["*"]
 CORS_ALLOW_CREDENTIALS=true
+
+# Coze AI 配置
+COZE_API_BASE_URL=https://api.coze.cn
+COZE_ACCESS_TOKEN=你的_coze_access_token
+COZE_WORKFLOW_ID=你的_workflow_id
+COZE_APP_ID=你的_app_id
+COZE_TIMEOUT=30
+
+# 飞书开放平台配置
+FEISHU_API_BASE_URL=https://open.feishu.cn
+FEISHU_APP_ID=你的_飞书_app_id
+FEISHU_APP_SECRET=你的_飞书_app_secret
+FEISHU_TIMEOUT=20
 ```
 
 ### 运行应用
@@ -264,6 +277,13 @@ POST /webhook/feishu
   "message": "消息事件处理成功"
 }
 ```
+
+### 飞书与 Coze 集成说明
+
+- 消息事件到达后，系统会解析 `event.message.content` 的 JSON 字符串，获取其中的 `text` 字段作为用户输入。
+- 用户输入会传给 Coze 工作流（需在 `.env` 中配置 `COZE_ACCESS_TOKEN`、`COZE_WORKFLOW_ID`、`COZE_APP_ID`）。
+- 成功获取 Coze 工作流的输出后，系统会使用飞书接口自动回复到原始消息（需要 `.env` 中配置 `FEISHU_APP_ID` 与 `FEISHU_APP_SECRET`）。
+- 回复使用飞书的 `reply` 接口，消息类型为 `text`，内容以 JSON 字符串形式写入 `content` 字段。
 
 ### 配置飞书 Webhook
 

@@ -18,3 +18,5 @@ wheels/
 test_*.py
 debug_*.py
 .history/
+
+.DS_Store

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     COZE_APP_ID: str = ""  # 从环境变量获取
     COZE_TIMEOUT: int = 30  # API 请求超时时间（秒）
 
+    # 飞书开放平台配置
+    FEISHU_API_BASE_URL: str = "https://open.feishu.cn"
+    FEISHU_APP_ID: str = ""  # 从环境变量获取
+    FEISHU_APP_SECRET: str = ""  # 从环境变量获取
+    FEISHU_TIMEOUT: int = 20  # 飞书 API 请求超时时间（秒）
+
 
 @lru_cache
 def get_settings() -> Settings:
